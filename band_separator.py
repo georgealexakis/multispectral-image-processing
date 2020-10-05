@@ -69,6 +69,7 @@ class BandSeparator:
     FPS_PATH = "data/resources/fps_log.yaml"
     WR_PATH = "data/resources/wr_coefficients.yaml"
     MP_PATH = "data/resources/parameters.yaml"
+    BA_PATH = "data/backup/"
     DS_PATH = "data/dataset/"
     SI_PATH = "data/simulation/"
     MI_NAME = "_multispectral_camera.png"
@@ -78,6 +79,7 @@ class BandSeparator:
     # Termination criteria for point detection and chessboard pattern size
     criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 100, 0.001)
     patternsize = (7, 5)
+    BACKUP = False
 
     def __init__(self):
         # Optimization in OpenCV
@@ -99,18 +101,32 @@ class BandSeparator:
         self.F = cv2.imread(self.FF_PATH, 0)
         self.D = cv2.imread(self.DF_PATH, 0)
 
+        # Start processing
+        # Edit the paths below to use dataset or a single image
+        # choice = 0 for single image demo, choice = 1 for stream of frames demo
+        # registrationApproach = 0 for feature-based image registration, registrationApproach = 1 for corner-based image registration
+        choice = 0
+        registrationApproach = 0
+
+        print(" --- Choose the options.")
+        print(" --- Choose `0` for single image demo.")
+        print(" --- Choose `1` for stream of frames demo.")
+        ui0 = input("Choose action: ")
+        choice = int(ui0)
+        print("User selected: " + str(choice))
+
+        print(" --- Choose `0` for feature-based image registration.")
+        print(" --- Choose `1` for corner-based image registration.")
+        ui1 = input("Choose action: ")
+        registrationApproach = int(ui1)
+        print("User selected: " + str(registrationApproach))
+
         # Initialize raw image window and set mouse listener
         cv2.namedWindow("Raw Image", cv2.WINDOW_NORMAL)
         cv2.setMouseCallback("Raw Image", self.onMouse, self.positions)
 
-        # Start processing
-        # Edit the paths below to use dataset or a single image
-        # choice = 0 for single image demo, choice = 1 for stream of frames demo
-        # registrationApproach = 0 for feature-based image registration, registrationApproach = 1 for corener-based image registration
-        choice = 0
-        registrationApproach = 0
         if choice == 0:
-            # Single image frame in simulation folder (play in loop)
+            print("Single image frame in simulation mode (play in loop) started.")
             while(True):
                 # Choose prefix and folder id
                 prefix = 2020511
@@ -124,7 +140,7 @@ class BandSeparator:
                 self.performProcessing(
                     rawImage, krgbImage, kdepthImage, choice, registrationApproach)
         else:
-            # Stream of frames in dataset folder (play in loop)
+            print("Stream of frames in dataset mode (play in loop) started.")
             # Stream length from 0 - 10
             self.ci = 0
             while(self.ci < 11):
@@ -317,6 +333,11 @@ class BandSeparator:
             else:
                 self.cornerRegistrator(b3I, krgbImage, kdepthImage)
 
+            # Save images
+            if self.BACKUP:
+                self.backupImages(images, rawImage, ndvi,
+                                  ndviColor, b3I, krgbImage, kdepthImage)
+
             self.setOperation(cv2.waitKey(action), rawImage)
 
             # Log FPS to fps_log.yaml
@@ -330,6 +351,31 @@ class BandSeparator:
                 self.startTime = time.time()
         else:
             print("Wrong input image dimensions.")
+
+    # Backup
+    def backupImages(self, images, raw, ndvi, ndvic, b3I, RGBK, DEPTHK):
+        # Path of images
+        s = []
+        for i in range(9):
+            s.append(self.BA_PATH + "b" + str(i+1) + ".png")
+        s.append(self.BA_PATH + "raw.png")
+        s.append(self.BA_PATH + "ndvi.png")
+        s.append(self.BA_PATH + "ndvic.png")
+        s.append(self.BA_PATH + "b3i.png")
+        s.append(self.BA_PATH + "rgbk.png")
+        s.append(self.BA_PATH + "depthk.png")
+        # Save images
+        try:
+            for i in range(9):
+                cv2.imwrite(s[i], images[i])
+            cv2.imwrite(s[9], raw)
+            cv2.imwrite(s[10], ndvi)
+            cv2.imwrite(s[11], ndvic)
+            cv2.imwrite(s[12], b3I)
+            cv2.imwrite(s[13], RGBK)
+            cv2.imwrite(s[14], DEPTHK)
+        except cv2.error:
+            print("Unable to save the images. The node will be shutted down.")
 
     # Display image
     def displayImage(self, img, title):
@@ -928,8 +974,15 @@ class BandSeparator:
             self.MAX_MATCHES = 0
             self.MIN_DIFF = 255
             self.saveWhiteReference()
-        elif key == 104 or key == 72:   # Keyboard button <h or H>
+        elif key == 104 or key == 72:  # Keyboard button <h or H>
             self.saveHomography()
+        elif key == 105 or key == 73:  # Keyboard button <i or I>
+            if self.BACKUP == False:
+                self.BACKUP = True
+                print("Backup is on.")
+            else:
+                self.BACKUP = False
+                print("Backup is off.")
         elif key == 27:
             sys.exit("Shutted down by the user.")
 
